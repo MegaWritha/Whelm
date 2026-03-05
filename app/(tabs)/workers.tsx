@@ -7,19 +7,24 @@ import {
   Pressable,
   Platform,
   TextInput,
+  ActivityIndicator,
 } from "react-native";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import { fetch } from "expo/fetch";
 import { Colors } from "@/constants/colors";
-import { useApp } from "@/context/AppContext";
+import { useApp, InboxItem } from "@/context/AppContext";
 import {
   ALL_WORKERS,
   DEPARTMENTS,
   Department,
   Worker,
+  buildWorkerSystemPrompt,
+  buildAutoWorkPrompt,
 } from "@/data/workers";
+import { getApiUrl } from "@/lib/query-client";
 
 const DEPT_COLORS: Record<Department, string> = {
   Creative: Colors.creative,
@@ -31,9 +36,10 @@ const DEPT_COLORS: Record<Department, string> = {
 
 export default function WorkersScreen() {
   const insets = useSafeAreaInsets();
-  const { hireWorker, fireWorker, isHired } = useApp();
+  const { hireWorker, fireWorker, isHired, addInboxItem, company } = useApp();
   const [selectedDept, setSelectedDept] = useState<Department | "All">("All");
   const [search, setSearch] = useState("");
+  const [hiringId, setHiringId] = useState<string | null>(null);
 
   const filtered = ALL_WORKERS.filter((w) => {
     const matchDept = selectedDept === "All" || w.department === selectedDept;
@@ -44,13 +50,53 @@ export default function WorkersScreen() {
     return matchDept && matchSearch;
   });
 
-  async function handleToggleHire(worker: Worker) {
+  async function handleHire(worker: Worker) {
+    setHiringId(worker.id);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    if (isHired(worker.id)) {
-      await fireWorker(worker.id);
-    } else {
-      await hireWorker(worker.id);
+    await hireWorker(worker.id);
+
+    // Auto-generate first piece of work and submit to inbox
+    if (company) {
+      try {
+        const systemPrompt = buildWorkerSystemPrompt(worker, company);
+        const autoWorkTask = buildAutoWorkPrompt(worker, company);
+
+        const baseUrl = getApiUrl();
+        const response = await fetch(`${baseUrl}api/worker/generate-work`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            workerSystemPrompt: systemPrompt,
+            taskPrompt: autoWorkTask,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const inboxItem: InboxItem = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            workerId: worker.id,
+            workerName: worker.name,
+            workerRole: worker.role,
+            title: `${worker.name}'s first deliverable — ready to review`,
+            content: data.content,
+            status: "pending",
+            createdAt: new Date().toISOString(),
+          };
+          await addInboxItem(inboxItem);
+          await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+        }
+      } catch (err) {
+        console.error("Auto-work generation failed:", err);
+      }
     }
+
+    setHiringId(null);
+  }
+
+  async function handleFire(worker: Worker) {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    await fireWorker(worker.id);
   }
 
   return (
@@ -64,18 +110,13 @@ export default function WorkersScreen() {
       <View style={styles.header}>
         <View>
           <Text style={styles.title}>Worker Roster</Text>
-          <Text style={styles.subtitle}>18 AI workers ready to hire</Text>
+          <Text style={styles.subtitle}>18 AI workers — hire to get real work done</Text>
         </View>
       </View>
 
       {/* Search */}
       <View style={styles.searchContainer}>
-        <Ionicons
-          name="search"
-          size={16}
-          color={Colors.textMuted}
-          style={styles.searchIcon}
-        />
+        <Ionicons name="search" size={16} color={Colors.textMuted} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search workers..."
@@ -149,31 +190,20 @@ export default function WorkersScreen() {
           return (
             <View key={dept} style={styles.deptSection}>
               <View style={styles.deptHeader}>
-                <View
-                  style={[
-                    styles.deptDot,
-                    { backgroundColor: DEPT_COLORS[dept] },
-                  ]}
-                />
+                <View style={[styles.deptDot, { backgroundColor: DEPT_COLORS[dept] }]} />
                 <Text style={styles.deptName}>{dept}</Text>
-                <View
-                  style={[
-                    styles.deptCount,
-                    { backgroundColor: DEPT_COLORS[dept] + "15" },
-                  ]}
-                >
-                  <Text
-                    style={[styles.deptCountText, { color: DEPT_COLORS[dept] }]}
-                  >
+                <View style={[styles.deptCount, { backgroundColor: DEPT_COLORS[dept] + "15" }]}>
+                  <Text style={[styles.deptCountText, { color: DEPT_COLORS[dept] }]}>
                     {workers.length}
                   </Text>
                 </View>
               </View>
               {workers.map((worker) => {
                 const hired = isHired(worker.id);
+                const isHiring = hiringId === worker.id;
                 const deptColor = DEPT_COLORS[worker.department];
                 return (
-                  <View key={worker.id} style={styles.workerCard}>
+                  <View key={worker.id} style={[styles.workerCard, hired && styles.workerCardHired]}>
                     <Pressable
                       style={styles.workerCardLeft}
                       onPress={() =>
@@ -188,13 +218,11 @@ export default function WorkersScreen() {
                           styles.workerAvatar,
                           {
                             backgroundColor: deptColor + "20",
-                            borderColor: deptColor + "40",
+                            borderColor: hired ? deptColor + "80" : deptColor + "40",
                           },
                         ]}
                       >
-                        <Text
-                          style={[styles.workerEmoji, { color: deptColor }]}
-                        >
+                        <Text style={[styles.workerEmoji, { color: deptColor }]}>
                           {worker.emoji}
                         </Text>
                       </View>
@@ -212,21 +240,49 @@ export default function WorkersScreen() {
                         <Text style={styles.workerPersonality} numberOfLines={2}>
                           {worker.personality}
                         </Text>
+                        {hired && (
+                          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.skillsScroll}>
+                            <View style={styles.skillsRow}>
+                              {worker.skills.slice(0, 3).map((skill) => (
+                                <View key={skill} style={[styles.skillPill, { borderColor: deptColor + "30", backgroundColor: deptColor + "08" }]}>
+                                  <Text style={[styles.skillText, { color: deptColor }]}>{skill}</Text>
+                                </View>
+                              ))}
+                            </View>
+                          </ScrollView>
+                        )}
                       </View>
                     </Pressable>
-                    <Pressable
-                      style={[
-                        styles.hireBtn,
-                        hired && styles.fireBtn,
-                      ]}
-                      onPress={() => handleToggleHire(worker)}
-                    >
-                      <Ionicons
-                        name={hired ? "remove" : "add"}
-                        size={18}
-                        color={hired ? Colors.danger : Colors.primary}
-                      />
-                    </Pressable>
+                    <View style={styles.workerActions}>
+                      {hired && (
+                        <Pressable
+                          style={styles.chatBtn}
+                          onPress={() =>
+                            router.push({
+                              pathname: "/worker/[id]",
+                              params: { id: worker.id },
+                            })
+                          }
+                        >
+                          <Ionicons name="chatbubble" size={14} color={deptColor} />
+                        </Pressable>
+                      )}
+                      <Pressable
+                        style={[styles.hireBtn, hired && styles.fireBtn]}
+                        onPress={() => hired ? handleFire(worker) : handleHire(worker)}
+                        disabled={isHiring}
+                      >
+                        {isHiring ? (
+                          <ActivityIndicator size="small" color={Colors.primary} />
+                        ) : (
+                          <Ionicons
+                            name={hired ? "remove" : "add"}
+                            size={18}
+                            color={hired ? Colors.danger : Colors.primary}
+                          />
+                        )}
+                      </Pressable>
+                    </View>
                   </View>
                 );
               })}
@@ -241,23 +297,25 @@ export default function WorkersScreen() {
             <Text style={styles.emptySub}>Try a different search or filter</Text>
           </View>
         )}
+
+        {/* Info banner */}
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle" size={16} color={Colors.primary} />
+          <Text style={styles.infoText}>
+            When you hire a worker, they immediately create real deliverable work and submit it to your Inbox.
+          </Text>
+        </View>
       </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  container: { flex: 1, backgroundColor: Colors.background },
   header: {
     paddingHorizontal: 20,
     paddingTop: 8,
     paddingBottom: 16,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
   },
   title: {
     fontFamily: "Inter_700Bold",
@@ -283,9 +341,6 @@ const styles = StyleSheet.create({
     height: 44,
     gap: 8,
   },
-  searchIcon: {
-    marginRight: 2,
-  },
   searchInput: {
     flex: 1,
     color: Colors.text,
@@ -308,33 +363,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
-  filterDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  filterText: {
-    fontFamily: "Inter_500Medium",
-    fontSize: 13,
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    gap: 24,
-  },
-  deptSection: {
-    gap: 10,
-  },
+  filterDot: { width: 6, height: 6, borderRadius: 3 },
+  filterText: { fontFamily: "Inter_500Medium", fontSize: 13 },
+  listContent: { paddingHorizontal: 20, gap: 24 },
+  deptSection: { gap: 10 },
   deptHeader: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
     marginBottom: 2,
   },
-  deptDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
+  deptDot: { width: 8, height: 8, borderRadius: 4 },
   deptName: {
     fontFamily: "Inter_600SemiBold",
     fontSize: 13,
@@ -347,19 +386,20 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 100,
   },
-  deptCountText: {
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 12,
-  },
+  deptCountText: { fontFamily: "Inter_600SemiBold", fontSize: 12 },
   workerCard: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     backgroundColor: Colors.surface,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
     borderColor: Colors.border,
     gap: 12,
+  },
+  workerCardHired: {
+    borderColor: Colors.primary + "30",
+    backgroundColor: Colors.surface,
   },
   workerCardLeft: {
     flex: 1,
@@ -375,18 +415,13 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     flexShrink: 0,
   },
-  workerEmoji: {
-    fontSize: 20,
-    fontFamily: "Inter_700Bold",
-  },
-  workerInfo: {
-    flex: 1,
-    gap: 2,
-  },
+  workerEmoji: { fontSize: 20, fontFamily: "Inter_700Bold" },
+  workerInfo: { flex: 1, gap: 3 },
   workerNameRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+    flexWrap: "wrap",
   },
   workerName: {
     fontFamily: "Inter_600SemiBold",
@@ -423,7 +458,30 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: Colors.textMuted,
     lineHeight: 17,
-    marginTop: 2,
+  },
+  skillsScroll: { marginTop: 4 },
+  skillsRow: { flexDirection: "row", gap: 6 },
+  skillPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 100,
+    borderWidth: 1,
+  },
+  skillText: { fontFamily: "Inter_500Medium", fontSize: 11 },
+  workerActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexShrink: 0,
+    paddingTop: 2,
+  },
+  chatBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: Colors.primaryDim,
+    alignItems: "center",
+    justifyContent: "center",
   },
   hireBtn: {
     width: 36,
@@ -432,11 +490,8 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryDim,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
   },
-  fireBtn: {
-    backgroundColor: Colors.danger + "15",
-  },
+  fireBtn: { backgroundColor: Colors.danger + "15" },
   emptyState: {
     alignItems: "center",
     paddingVertical: 60,
@@ -451,5 +506,23 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_400Regular",
     fontSize: 14,
     color: Colors.textMuted,
+  },
+  infoBanner: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    backgroundColor: Colors.primaryDim,
+    borderRadius: 12,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: Colors.primary + "30",
+    marginTop: 8,
+  },
+  infoText: {
+    flex: 1,
+    fontFamily: "Inter_400Regular",
+    fontSize: 13,
+    color: Colors.primary,
+    lineHeight: 19,
   },
 });
