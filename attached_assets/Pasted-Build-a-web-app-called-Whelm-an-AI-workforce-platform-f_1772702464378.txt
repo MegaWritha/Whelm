@@ -1,0 +1,269 @@
+Build a web app called Whelm — an AI workforce 
+platform for solo founders and micro businesses 
+who are overwhelmed doing every job alone.
+
+TAGLINE: Your company. Fully staffed. Powered by AI.
+
+CORE CONCEPT:
+Founders hire AI workers the same way they would 
+hire real staff. Each worker has a name, a role, 
+a personality and a skill set. They do not just 
+talk — they create real deliverable work, learn 
+your brand over time, connect directly to your 
+platforms and submit work for your approval before 
+anything goes live. When you eventually hire real 
+humans, those humans collaborate alongside your 
+AI workers — the AI becomes the foundation, 
+the institutional memory and the always-on 
+executor that never sleeps.
+
+ONBOARDING:
+When a founder signs up they complete a company 
+profile:
+- Company name and industry
+- What their product or service does
+- Their target audience
+- Brand voice — formal, casual, bold, warm etc
+- Brand colours and fonts
+- Connected platforms — Facebook, Instagram, 
+  Twitter, LinkedIn, TikTok, WordPress, Mailchimp
+- Goals — grow audience, generate leads, 
+  improve customer service, build content etc
+
+Every AI worker is onboarded with this information 
+automatically. They know your company before they 
+start their first task.
+
+AI WORKERS — FULL ROSTER:
+
+CREATIVE DEPARTMENT:
+1. Social Media Manager
+   Creates posts, captions, ad copy and content 
+   calendars for all connected platforms. Learns 
+   what performs well on your accounts and adjusts 
+   strategy. Submits weekly content batches for 
+   approval. Once approved posts directly to your 
+   connected platforms on schedule.
+
+2. Graphics Designer
+   Creates visual briefs, generates image 
+   descriptions optimised for AI image tools, 
+   builds branded Canva templates, maintains 
+   your visual identity consistently across 
+   all content.
+
+3. Video Script Writer
+   Writes scripts for TikTok, YouTube Shorts, 
+   Instagram Reels and long form video based 
+   on your content calendar and brand voice.
+
+4. Copywriter
+   Writes everything — email newsletters, 
+   product descriptions, landing page copy, 
+   press releases, pitch text — all in your 
+   exact brand voice learned over time.
+
+GROWTH DEPARTMENT:
+5. Marketing Strategist
+   Builds campaigns, writes ad copy, tracks 
+   performance data from connected platforms, 
+   sends weekly performance reports with 
+   specific recommendations for improvement.
+
+6. SEO Specialist
+   Optimises all content for search engines, 
+   suggests keywords, monitors search rankings, 
+   identifies content gaps and opportunities.
+
+7. Community Manager
+   Drafts responses to comments and messages 
+   across all platforms, maintains consistent 
+   brand tone, flags urgent issues directly 
+   to the founder for immediate attention.
+
+8. Email Marketing Manager
+   Builds email sequences, writes newsletters, 
+   manages subscriber segmentation, tracks 
+   open rates and click rates and reports 
+   on performance.
+
+OPERATIONS DEPARTMENT:
+9. Customer Support Agent
+   Learns the product completely, drafts 
+   responses to every customer complaint 
+   and enquiry, builds and maintains an FAQ 
+   knowledge base, escalates genuine crises 
+   to the founder immediately.
+
+10. Legal Assistant
+    Drafts terms of service, privacy policies, 
+    contracts, NDAs and basic compliance 
+    documents tailored to the founder's 
+    industry and location.
+
+11. Finance Assistant
+    Tracks expenses from uploaded receipts, 
+    creates invoices, builds monthly financial 
+    summaries, flags unusual spending patterns.
+
+12. Project Manager
+    Tracks all tasks across all workers, sends 
+    the founder a daily briefing every morning, 
+    flags overdue tasks and upcoming deadlines, 
+    keeps the whole workforce coordinated.
+
+TECHNICAL DEPARTMENT:
+13. Developer Assistant
+    Reviews code, suggests fixes, writes 
+    technical documentation, answers questions 
+    about the codebase, helps debug issues.
+
+14. Data Analyst
+    Reads uploaded data files and platform 
+    analytics, identifies trends, builds 
+    clear reports, tells the founder exactly 
+    what is working and what is not.
+
+15. QA Tester
+    Reviews the product regularly for bugs 
+    and inconsistencies, submits structured 
+    bug reports with steps to reproduce.
+
+STRATEGY DEPARTMENT:
+16. Business Analyst
+    Researches the market, tracks competitors, 
+    identifies growth opportunities, produces 
+    monthly strategy briefs.
+
+17. Investor Relations Assistant
+    Helps prepare pitch decks, writes investor 
+    updates, tracks fundraising pipeline and 
+    deadlines, drafts outreach emails to investors.
+
+18. HR Assistant
+    When real humans join the team this worker 
+    manages onboarding documents, writes job 
+    descriptions, tracks performance and 
+    maintains team records.
+
+HOW WORK GETS DONE:
+Step 1 — Founder hires workers from the roster. 
+Each worker is automatically onboarded with 
+the company profile.
+
+Step 2 — Workers proactively generate work 
+based on their role. The social media manager 
+drafts next week's posts without being asked. 
+The marketing strategist sends a Monday morning 
+campaign suggestion. The community manager 
+drafts responses to weekend comments waiting 
+in the inbox.
+
+Step 3 — All work lands in the founder's 
+Approval Inbox before anything goes live. 
+Founder reviews, edits, approves or sends 
+back with feedback notes.
+
+Step 4 — Approved work is published directly 
+through connected platform integrations or 
+downloaded for use elsewhere.
+
+Step 5 — Workers learn from feedback. When 
+the founder edits a post or sends work back 
+with notes, the worker remembers and improves. 
+Over time the work requires less editing.
+
+APPROVAL INBOX:
+Central dashboard showing all submitted work 
+across all workers. Each submission shows 
+the worker name, role, task title, platform 
+it is for and submission time. One click to 
+approve and publish. One click to send back 
+with notes. Urgent items flagged at the top.
+
+WORKER PERSONALITIES:
+Each worker has a name and communicates like 
+a real colleague. Examples:
+
+Zara — Social Media Manager
+Energetic, trend aware, always has three 
+content options ready. Sends messages like:
+"Hey, I put together five posts for this week. 
+Tuesday's one is performing really well based 
+on your past data — I think it could be a great 
+ad. Want me to turn it into a boosted post?"
+
+Kemi — Content Writer
+Thoughtful, research driven, adapts to any tone.
+"I finished the Flora Nwapa article. I noticed 
+you have been publishing a lot about Nigerian 
+authors — should I start a series? I have 
+outlines ready for four more."
+
+Tunde — Marketing Strategist
+Data focused, direct, always has a plan.
+"Your Monday posts are getting 3x more 
+engagement than your Friday ones. I have 
+restructured the content calendar around 
+this. Review when you are ready."
+
+HUMAN COLLABORATION LAYER:
+When a founder hires a real human that person 
+joins Whelm as a collaborator. They see all 
+the work the AI has produced, the brand 
+guidelines the AI has built, the performance 
+history and the content calendar. They can 
+take over tasks, work alongside the AI 
+or supervise specific workers. The AI never 
+leaves when humans arrive. It becomes the 
+foundation the humans build on top of.
+
+LEARNING SYSTEM:
+Every worker maintains a learning profile 
+for each company they work for. They track:
+- Brand voice patterns from approved content
+- Topics and formats that perform well
+- Feedback patterns from returned work
+- Company updates from the founder
+- Platform performance data from integrations
+
+Workers improve measurably over time. 
+A founder using Whelm for six months 
+has workers that require significantly 
+less correction than on day one.
+
+PLATFORM INTEGRATIONS:
+Facebook, Instagram, Twitter, LinkedIn, 
+TikTok, YouTube, WordPress, Mailchimp, 
+Google Analytics, Shopify, WhatsApp Business
+
+PRICING:
+Free tier — 3 AI workers, 30 tasks per month, 
+no platform integrations. Perfect for trying 
+the product.
+
+Pro tier — 10 workers, unlimited tasks, 
+all social media integrations, brand learning, 
+human collaboration layer.
+
+Business tier — unlimited workers, advanced 
+analytics, priority support, API access, 
+custom worker training on company data.
+
+Enterprise — fully custom workforce, 
+dedicated account management, white label option.
+
+DESIGN:
+Clean, warm, professional. Feels like a real 
+company dashboard not a chatbot. Workers have 
+AI generated profile photos. The inbox feels 
+like a mix of Slack and email. Navigation is 
+simple — Dashboard, My Workers, Inbox, 
+Analytics, Settings. Dark mode available. 
+Fully mobile responsive.
+
+The overall feeling is: I have a real team. 
+I am in control. I am no longer overwhelmed.
+
+Tech stack: React, Node, Firebase, 
+Claude API by Anthropic for AI workers.
