@@ -1,3 +1,4 @@
+import { Image } from "react-native";
 import React, { useState, useRef, useCallback } from "react";
 import {
   View,
@@ -16,7 +17,6 @@ import { router, useLocalSearchParams } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import { fetch } from "expo/fetch";
 import { Colors } from "@/constants/colors";
 import { useApp, ChatMessage, InboxItem } from "@/context/AppContext";
 import {
@@ -24,7 +24,8 @@ import {
   buildWorkerSystemPrompt,
   Department,
 } from "@/data/workers";
-import { getApiUrl } from "@/lib/query-client";
+import { generateWorkerResponse, generateInboxItem } from "@/lib/groq";
+import {needsCollaboration, collaborate} from "@/lib/collaboration";
 
 const DEPT_COLORS: Record<Department, string> = {
   Creative: Colors.creative,
@@ -86,72 +87,58 @@ export default function WorkerChatScreen() {
     setIsSending(true);
     setStreamingContent("");
 
-    const systemPrompt = company
-      ? buildWorkerSystemPrompt(w, company)
-      : w.systemPromptTemplate;
+    const workerContext = {
+      workerName: w.name,
+      workerRole: w.role,
+      workerPersonality: w.greeting,
+      companyName: company?.name || "the company",
+      companyIndustry: company?.industry || "",
+      productDescription: company?.productDescription || "",
+      targetAudience: company?.targetAudience || "",
+      brandVoice: company?.brandVoice || "",
+      brandColors: company?.brandColors || "",
+      goals: company?.goals || [],
+    };
 
-    const currentMessages = messages;
-    const allMessages = [...currentMessages, userMsg];
-    const apiMessages = allMessages.map((m) => ({
-      role: m.role,
+    const conversationHistory = messages.map((m) => ({
+      role: m.role as "user" | "assistant",
       content: m.content,
     }));
 
     try {
-      const baseUrl = getApiUrl();
-      const response = await fetch(`${baseUrl}api/worker/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify({
-          messages: apiMessages,
-          workerSystemPrompt: systemPrompt,
-        }),
-      });
+      const response = await generateWorkerResponse(
+        workerContext,
+        text.trim(),
+        conversationHistory
+      );
 
-      if (!response.ok) throw new Error("Failed to get response");
+      // Check if collaboration is needed
+      const collaboratorId = needsCollaboration(w.name, text.trim());
+      let finalResponse = response;
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
+      if (collaboratorId) {
+        const collaboration = await collaborate({
+          fromWorker: w.name,
+          toWorker: collaboratorId,
+          task: `Based on this request: "${text.trim()}", create the visual/supporting deliverable.`,
+          context: `Company: ${workerContext.companyName}, Industry: ${workerContext.companyIndustry}, Brand: ${workerContext.brandVoice}`,
+        });
 
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullContent = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const raw = line.slice(6).trim();
-            if (!raw) continue;
-            try {
-              const parsed = JSON.parse(raw);
-              if (parsed.content) {
-                fullContent += parsed.content;
-                setStreamingContent(fullContent);
-              }
-              if (parsed.done) {
-                const assistantMsg: ChatMessage = {
-                  id: (Date.now() + 1).toString() + Math.random().toString(36).substr(2, 5),
-                  role: "assistant",
-                  content: fullContent,
-                  timestamp: new Date().toISOString(),
-                };
-                await addMessage(id, assistantMsg);
-                setStreamingContent("");
-              }
-            } catch {}
-          }
-        }
+        finalResponse = response + 
+          "\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━\n" +
+          `📎 ${collaboration.toWorker.toUpperCase()} has contributed:\n` +
+          "━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n" +
+          collaboration.deliverable +
+          (collaboration.imageUrl ? `\n\n![Image](${collaboration.imageUrl})` : "");
       }
+
+      const assistantMsg: ChatMessage = {
+        id: (Date.now() + 1).toString() + Math.random().toString(36).substr(2, 5),
+        role: "assistant",
+        content: finalResponse,
+        timestamp: new Date().toISOString(),
+      };
+      await addMessage(id, assistantMsg);
     } catch (err) {
       console.error("Chat error:", err);
       const errMsg: ChatMessage = {
@@ -161,9 +148,9 @@ export default function WorkerChatScreen() {
         timestamp: new Date().toISOString(),
       };
       await addMessage(id, errMsg);
-      setStreamingContent("");
     } finally {
       setIsSending(false);
+      setStreamingContent("");
     }
   }
 
@@ -171,11 +158,6 @@ export default function WorkerChatScreen() {
     setIsGeneratingWork(true);
     setShowWorkModal(false);
 
-    const systemPrompt = company
-      ? buildWorkerSystemPrompt(w, company)
-      : w.systemPromptTemplate;
-
-    // Show in chat that work is being created
     const requestMsg: ChatMessage = {
       id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
       role: "user",
@@ -185,78 +167,42 @@ export default function WorkerChatScreen() {
     await addMessage(id, requestMsg);
     setIsSending(true);
 
+    const workerContext = {
+      workerName: w.name,
+      workerRole: w.role,
+      workerPersonality: w.greeting,
+      companyName: company?.name || "the company",
+      companyIndustry: company?.industry || "",
+      productDescription: company?.productDescription || "",
+      targetAudience: company?.targetAudience || "",
+      brandVoice: company?.brandVoice || "",
+      brandColors: company?.brandColors || "",
+      goals: company?.goals || [],
+    };
+
     try {
-      const baseUrl = getApiUrl();
+      const result = await generateInboxItem(workerContext, taskPrompt);
 
-      // Use streaming chat for work generation so it appears in the conversation
-      const response = await fetch(`${baseUrl}api/worker/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "text/event-stream",
-        },
-        body: JSON.stringify({
-          messages: [{ role: "user", content: taskPrompt }],
-          workerSystemPrompt: systemPrompt,
-        }),
-      });
+      const assistantMsg: ChatMessage = {
+        id: (Date.now() + 1).toString() + Math.random().toString(36).substr(2, 5),
+        role: "assistant",
+        content: result.content,
+        timestamp: new Date().toISOString(),
+      };
+      await addMessage(id, assistantMsg);
 
-      if (!response.ok) throw new Error("Failed");
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No response body");
-
-      const decoder = new TextDecoder();
-      let buffer = "";
-      let fullContent = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buffer += decoder.decode(value, { stream: true });
-        const lines = buffer.split("\n");
-        buffer = lines.pop() || "";
-
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            const raw = line.slice(6).trim();
-            if (!raw) continue;
-            try {
-              const parsed = JSON.parse(raw);
-              if (parsed.content) {
-                fullContent += parsed.content;
-                setStreamingContent(fullContent);
-              }
-              if (parsed.done) {
-                // Add to chat
-                const assistantMsg: ChatMessage = {
-                  id: (Date.now() + 1).toString() + Math.random().toString(36).substr(2, 5),
-                  role: "assistant",
-                  content: fullContent,
-                  timestamp: new Date().toISOString(),
-                };
-                await addMessage(id, assistantMsg);
-                setStreamingContent("");
-
-                // Also submit to inbox
-                const inboxItem: InboxItem = {
-                  id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
-                  workerId: w.id,
-                  workerName: w.name,
-                  workerRole: w.role,
-                  title: taskLabel,
-                  content: fullContent,
-                  status: "pending",
-                  createdAt: new Date().toISOString(),
-                };
-                await addInboxItem(inboxItem);
-                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-              }
-            } catch {}
-          }
-        }
-      }
+      const inboxItem: InboxItem = {
+        id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+        workerId: w.id,
+        workerName: w.name,
+        workerRole: w.role,
+        title: result.title,
+        content: result.content,
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      };
+      await addInboxItem(inboxItem);
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (err) {
       console.error("Generate work error:", err);
       const errMsg: ChatMessage = {
@@ -266,10 +212,10 @@ export default function WorkerChatScreen() {
         timestamp: new Date().toISOString(),
       };
       await addMessage(id, errMsg);
-      setStreamingContent("");
     } finally {
       setIsSending(false);
       setIsGeneratingWork(false);
+      setStreamingContent("");
       setWorkTitle("");
       setCustomWork("");
     }
@@ -298,15 +244,36 @@ export default function WorkerChatScreen() {
               isUser ? styles.messageBubbleUser : styles.messageBubbleAssistant,
             ]}
           >
-            <Text
-              style={[
-                styles.messageText,
-                isUser ? styles.messageTextUser : styles.messageTextAssistant,
-              ]}
-              selectable
-            >
-              {item.content}
-            </Text>
+            {item.content.includes("[IMAGE:") ? (
+              <>
+                <Text
+                  style={[
+                    styles.messageText,
+                    isUser ? styles.messageTextUser : styles.messageTextAssistant,
+                  ]}
+                  selectable
+                >
+                  {item.content.replace(/\[IMAGE:.*?\]/g, "").trim()}
+                </Text>
+                {item.content.match(/\[IMAGE:(.*?)\]/)?.[1] && (
+                  <Image
+                    source={{ uri: item.content.match(/\[IMAGE:(.*?)\]/)?.[1] }}
+                    style={{ width: "100%", height: 200, borderRadius: 8, marginTop: 8 }}
+                    resizeMode="cover"
+                  />
+                )}
+              </>
+            ) : (
+              <Text
+                style={[
+                  styles.messageText,
+                  isUser ? styles.messageTextUser : styles.messageTextAssistant,
+                ]}
+                selectable
+              >
+                {item.content}
+              </Text>
+            )}
           </View>
         </View>
       );

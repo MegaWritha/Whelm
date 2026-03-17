@@ -6,7 +6,19 @@ import React, {
   useMemo,
   ReactNode,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+  doc,
+  setDoc,
+  getDoc,
+  updateDoc,
+  collection,
+  addDoc,
+  onSnapshot,
+  query,
+  orderBy,
+} from "firebase/firestore";
+import { db } from "@/lib/firebase";
+import { useAuth } from "@/context/AuthContext";
 import { CompanyProfile } from "@/data/workers";
 
 export interface InboxItem {
@@ -37,35 +49,28 @@ export interface WorkerConversation {
 
 interface AppContextValue {
   company: CompanyProfile | null;
-  setCompany: (profile: CompanyProfile) => void;
+  setCompany: (profile: CompanyProfile) => Promise<void>;
   onboardingComplete: boolean;
-  setOnboardingComplete: (val: boolean) => void;
+  setOnboardingComplete: (val: boolean) => Promise<void>;
   hiredWorkers: string[];
-  hireWorker: (workerId: string) => void;
-  fireWorker: (workerId: string) => void;
+  hireWorker: (workerId: string) => Promise<void>;
+  fireWorker: (workerId: string) => Promise<void>;
   isHired: (workerId: string) => boolean;
   inboxItems: InboxItem[];
-  addInboxItem: (item: InboxItem) => void;
-  approveItem: (id: string) => void;
-  rejectItem: (id: string) => void;
+  addInboxItem: (item: InboxItem) => Promise<void>;
+  approveItem: (id: string) => Promise<void>;
+  rejectItem: (id: string) => Promise<void>;
   pendingCount: number;
   conversations: Record<string, WorkerConversation>;
-  addMessage: (workerId: string, message: ChatMessage) => void;
+  addMessage: (workerId: string, message: ChatMessage) => Promise<void>;
   getConversation: (workerId: string) => WorkerConversation | null;
   isLoaded: boolean;
 }
 
 const AppContext = createContext<AppContextValue | null>(null);
 
-const STORAGE_KEYS = {
-  COMPANY: "whelm:company",
-  ONBOARDING: "whelm:onboarding",
-  HIRED: "whelm:hired_workers",
-  INBOX: "whelm:inbox",
-  CONVERSATIONS: "whelm:conversations",
-};
-
 export function AppProvider({ children }: { children: ReactNode }) {
+  const { user } = useAuth();
   const [company, setCompanyState] = useState<CompanyProfile | null>(null);
   const [onboardingComplete, setOnboardingCompleteState] = useState(false);
   const [hiredWorkers, setHiredWorkers] = useState<string[]>([]);
@@ -73,79 +78,107 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [conversations, setConversations] = useState<Record<string, WorkerConversation>>({});
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Load user data from Firestore when user logs in
   useEffect(() => {
-    loadFromStorage();
-  }, []);
+    if (!user) {
+      setCompanyState(null);
+      setOnboardingCompleteState(false);
+      setHiredWorkers([]);
+      setInboxItems([]);
+      setConversations({});
+      setIsLoaded(false);
+      return;
+    }
+    loadFromFirestore();
+  }, [user]);
 
-  async function loadFromStorage() {
+  // Listen to inbox in real time
+  useEffect(() => {
+    if (!user) return;
+    const q = query(
+      collection(db, "users", user.uid, "inbox"),
+      orderBy("createdAt", "desc")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const items: InboxItem[] = snapshot.docs.map((d) => ({
+        id: d.id,
+        ...d.data(),
+      })) as InboxItem[];
+      setInboxItems(items);
+    });
+    return unsubscribe;
+  }, [user]);
+
+  async function loadFromFirestore() {
+    if (!user) return;
     try {
-      const [companyData, onboarding, hired, inbox, convos] = await Promise.all([
-        AsyncStorage.getItem(STORAGE_KEYS.COMPANY),
-        AsyncStorage.getItem(STORAGE_KEYS.ONBOARDING),
-        AsyncStorage.getItem(STORAGE_KEYS.HIRED),
-        AsyncStorage.getItem(STORAGE_KEYS.INBOX),
-        AsyncStorage.getItem(STORAGE_KEYS.CONVERSATIONS),
-      ]);
-
-      if (companyData) setCompanyState(JSON.parse(companyData));
-      if (onboarding) setOnboardingCompleteState(JSON.parse(onboarding));
-      if (hired) setHiredWorkers(JSON.parse(hired));
-      if (inbox) setInboxItems(JSON.parse(inbox));
-      if (convos) setConversations(JSON.parse(convos));
+      const userDoc = await getDoc(doc(db, "users", user.uid));
+      if (userDoc.exists()) {
+        const data = userDoc.data();
+        if (data.company) setCompanyState(data.company);
+        if (data.onboardingComplete) setOnboardingCompleteState(data.onboardingComplete);
+        if (data.hiredWorkers) setHiredWorkers(data.hiredWorkers);
+        if (data.conversations) setConversations(data.conversations);
+      }
     } catch (e) {
-      console.error("Failed to load from storage:", e);
+      console.error("Failed to load from Firestore:", e);
     } finally {
       setIsLoaded(true);
     }
   }
 
   const setCompany = async (profile: CompanyProfile) => {
+    if (!user) return;
     setCompanyState(profile);
-    await AsyncStorage.setItem(STORAGE_KEYS.COMPANY, JSON.stringify(profile));
+    await setDoc(doc(db, "users", user.uid), { company: profile }, { merge: true });
   };
 
   const setOnboardingComplete = async (val: boolean) => {
+    if (!user) return;
     setOnboardingCompleteState(val);
-    await AsyncStorage.setItem(STORAGE_KEYS.ONBOARDING, JSON.stringify(val));
+    await setDoc(doc(db, "users", user.uid), { onboardingComplete: val }, { merge: true });
   };
 
   const hireWorker = async (workerId: string) => {
+    if (!user) return;
     const updated = [...hiredWorkers, workerId];
     setHiredWorkers(updated);
-    await AsyncStorage.setItem(STORAGE_KEYS.HIRED, JSON.stringify(updated));
+    await setDoc(doc(db, "users", user.uid), { hiredWorkers: updated }, { merge: true });
   };
 
   const fireWorker = async (workerId: string) => {
+    if (!user) return;
     const updated = hiredWorkers.filter((id) => id !== workerId);
     setHiredWorkers(updated);
-    await AsyncStorage.setItem(STORAGE_KEYS.HIRED, JSON.stringify(updated));
+    await setDoc(doc(db, "users", user.uid), { hiredWorkers: updated }, { merge: true });
   };
 
   const isHired = (workerId: string) => hiredWorkers.includes(workerId);
 
   const addInboxItem = async (item: InboxItem) => {
-    const updated = [item, ...inboxItems];
-    setInboxItems(updated);
-    await AsyncStorage.setItem(STORAGE_KEYS.INBOX, JSON.stringify(updated));
+    if (!user) return;
+    await addDoc(collection(db, "users", user.uid, "inbox"), {
+      ...item,
+      createdAt: new Date().toISOString(),
+    });
   };
 
   const approveItem = async (id: string) => {
-    const updated = inboxItems.map((item) =>
-      item.id === id ? { ...item, status: "approved" as const } : item
-    );
-    setInboxItems(updated);
-    await AsyncStorage.setItem(STORAGE_KEYS.INBOX, JSON.stringify(updated));
+    if (!user) return;
+    await updateDoc(doc(db, "users", user.uid, "inbox", id), {
+      status: "approved",
+    });
   };
 
   const rejectItem = async (id: string) => {
-    const updated = inboxItems.map((item) =>
-      item.id === id ? { ...item, status: "rejected" as const } : item
-    );
-    setInboxItems(updated);
-    await AsyncStorage.setItem(STORAGE_KEYS.INBOX, JSON.stringify(updated));
+    if (!user) return;
+    await updateDoc(doc(db, "users", user.uid, "inbox", id), {
+      status: "rejected",
+    });
   };
 
   const addMessage = async (workerId: string, message: ChatMessage) => {
+    if (!user) return;
     setConversations((prev) => {
       const existing = prev[workerId];
       const updated = {
@@ -156,7 +189,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
           lastMessageAt: message.timestamp,
         },
       };
-      AsyncStorage.setItem(STORAGE_KEYS.CONVERSATIONS, JSON.stringify(updated));
+      setDoc(
+        doc(db, "users", user.uid),
+        { conversations: updated },
+        { merge: true }
+      );
       return updated;
     });
   };
